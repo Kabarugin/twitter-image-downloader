@@ -2,6 +2,7 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 const Inquirer = require("inquirer");
 const chalk = require("chalk");
+const setTimeoutP = require("timers/promises").setTimeout;
 
 const downloader = require("./lib/downloader");
 
@@ -16,6 +17,7 @@ async function autoScroll(page) {
         totalHeight += distance;
         if (totalHeight >= scrollHeight) {
           clearInterval(timer);
+          console.log("resolve");
           resolve();
         }
       }, 300);
@@ -34,6 +36,15 @@ async function getTwitterImages(username) {
     height: 768,
   });
 
+  const loginPageUrl = "https://twitter.com/i/flow/login";
+  await page.goto(loginPageUrl, {
+    timeout: 0,
+    waitUntil: "networkidle0",
+  });
+
+  //wait for 60 sec to login
+  await setTimeoutP(60000);
+
   const dir = `./images`;
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir);
@@ -51,13 +62,19 @@ async function getTwitterImages(username) {
         const urlcleaner = /(&name=([a-zA-Z0-9_]*$))\b/;
         let cleanurl = url.replace(urlcleaner, "&name=large");
 
-        try {
+        omgalabel: try {
           const imageDetails = cleanurl.match(
             "https://pbs.twimg.com/media/(.*)?format=(.*)&name=(.*)"
           );
-          const imageName = imageDetails[1];
+          const imageName = imageDetails[1].slice(0, -1);
           const imageExtension = imageDetails[2];
           console.log(chalk.magenta("Downloading..."));
+          console.log(cleanurl, imageName, imageExtension, username);
+          /* if (imageName == "FmRJI_rakAEdm8B") {
+            console.log(chalk.magenta("Found last dowloaded image"));
+            break omgalabel;
+          }
+          */
           await downloader(cleanurl, imageName, imageExtension, username);
         } catch (error) {}
       }
@@ -65,11 +82,11 @@ async function getTwitterImages(username) {
   });
 
   const pageUrl = `https://twitter.com/${username.replace("@", "")}`;
-
   await page.goto(pageUrl, {
     timeout: 0,
     waitUntil: "networkidle0",
   });
+
   await autoScroll(page);
   await browser.close();
   console.log(chalk.cyan("Download Complete"));
